@@ -1,161 +1,116 @@
 # Data Schema
 
-> Source of truth for entity design, relationships, and constraints for the Portfolio Tracker API.
-> Runtime schema is created via **EF Core Migrations**; this doc is for humans and reviews.
+Source of truth for entity design and relationships for the Portfolio Tracker API. Runtime schema is created via EF Core migrations.
 
-## Conventions
-
-* **Time**: all timestamps are UTC (`CreatedAt`, `UpdatedAt` on every entity).
-* **Money**: use `decimal` (never `double`). Suggested precision: `decimal(18,2)` for amounts, `decimal(18,6)` for per-share/quantity.
-* **Soft delete** (optional): add `IsDeleted` + global filters if needed later.
-* **Enums**: store as strings for readability (or ints + lookup table if preferred).
-* **Cascades**: deleting a parent removes children (User → Portfolios; Portfolio → Holdings/Transactions).
+- Timestamps: all `DateTime` are UTC (`CreatedAt`, `UpdatedAt`, `ExecutedAt`).
+- Money: `decimal(18,2)` for amounts; `decimal(18,6)` for quantities/prices.
+- Enum: `TransactionType` stored as `int` (C# enum order).
 
 ---
 
 ## Users
 
-**Purpose:** account & ownership of portfolios.
+| Column       | Type          | Nullable | Notes                         |
+| ------------ | ------------- | -------- | ----------------------------- |
+| UserId       | Guid (PK)     | No       | Primary key                   |
+| Email        | string(255)   | No       | Unique; indexed               |
+| PasswordHash | string        | No       | Application-managed hash      |
+| FullName     | string        | No       | Display name                  |
+| IsActive     | bool          | No       | Default `true`                |
+| CreatedAt    | DateTime (UTC)| No       | Default now                   |
+| UpdatedAt    | DateTime (UTC)| No       | Updated on changes            |
 
-| Column       | Type      | Nullable | Constraints / Notes              |
-| ------------ | --------- | -------- | -------------------------------- |
-| UserId       | Guid (PK) | No       | Primary key                      |
-| Email        | string    | No       | Unique (case-insensitive); index |
-| PasswordHash | string    | No       | Or use external IdP sub later    |
-| FullName     | string    | No       |                                  |
-| IsActive     | bool      | No       | Default `true`                   |
-| CreatedAt    | DateTime  | No       | UTC; default now                 |
-| UpdatedAt    | DateTime  | No       | UTC; auto-updated on write       |
+Indexes:
 
-**Indexes**
+- Unique: `Email`
 
-* Unique: **Email**
-* (Optional) Non-unique: **IsActive**
+Relationships:
 
-**Relationships**
-
-* 1 User → *n* Portfolios (cascade on delete)
+- 1 User → n Portfolios
+- 1 User → n Transactions
 
 ---
 
 ## Portfolios
 
-**Purpose:** container for holdings, cash, and transactions.
+| Column      | Type          | Nullable | Notes                              |
+| ----------- | ------------- | -------- | ---------------------------------- |
+| PortfolioId | Guid (PK)     | No       | Primary key                        |
+| UserId      | Guid (FK)     | No       | FK → Users.UserId                  |
+| OwnerName   | string        | No       | Copied from user full name         |
+| Label       | string        | No       | e.g., “Retirement”, “Brokerage”    |
+| CashBalance | decimal(18,2) | No       | Current cash in portfolio currency |
+| CreatedAt   | DateTime (UTC)| No       |                                    |
+| UpdatedAt   | DateTime (UTC)| No       |                                    |
 
-| Column       | Type          | Nullable | Constraints / Notes                         |
-| ------------ | ------------- | -------- | ------------------------------------------- |
-| PortfolioId  | Guid (PK)     | No       | Primary key                                 |
-| UserId       | Guid (FK)     | No       | FK → Users.UserId; index; cascade on delete |
-| Label        | string        | No       | e.g., “Retirement 2045”                     |
-| BaseCurrency | string (3)    | No       | ISO-4217 code, e.g., “USD”                  |
-| CashBalance  | decimal(18,2) | No       | Running cash at portfolio level             |
-| CreatedAt    | DateTime      | No       | UTC                                         |
-| UpdatedAt    | DateTime      | No       | UTC                                         |
+Indexes:
 
-**Indexes / Uniqueness**
+- Index: `UserId`
 
-* Index: **UserId**
-* (Optional) Unique composite: (**UserId**, **Label**) to avoid duplicate names per user
+Relationships:
 
-**Relationships**
-
-* 1 Portfolio → *n* Holdings (cascade)
-* 1 Portfolio → *n* Transactions (cascade)
+- 1 Portfolio → n Holdings
+- 1 Portfolio → n Transactions
 
 ---
 
 ## Holdings
 
-**Purpose:** current position per instrument in a portfolio.
+| Column       | Type          | Nullable | Notes                               |
+| ------------ | ------------- | -------- | ----------------------------------- |
+| HoldingId    | Guid (PK)     | No       | Primary key                         |
+| PortfolioId  | Guid (FK)     | No       | FK → Portfolios.PortfolioId         |
+| Symbol       | string        | No       | Ticker, e.g., `AAPL`                |
+| Exchange     | string        | Yes      | e.g., `NASDAQ`, `NYSE`              |
+| Quantity     | decimal(18,6) | No       | Supports fractional shares          |
+| AvgCostBasis | decimal(18,2) | No       | Average per-share cost              |
+| CreatedAt    | DateTime (UTC)| No       |                                     |
+| UpdatedAt    | DateTime (UTC)| No       |                                     |
 
-| Column       | Type          | Nullable | Constraints / Notes                                          |
-| ------------ | ------------- | -------- | ------------------------------------------------------------ |
-| HoldingId    | Guid (PK)     | No       | Primary key                                                  |
-| PortfolioId  | Guid (FK)     | No       | FK → Portfolios.PortfolioId; index; cascade on delete        |
-| Symbol       | string        | No       | e.g., “AAPL”; index                                          |
-| Exchange     | string        | Yes      | e.g., “NASDAQ”                                               |
-| Quantity     | decimal(18,6) | No       | Supports fractional shares                                   |
-| AvgCostBasis | decimal(18,6) | No       | Average per-share cost (can be recomputed from transactions) |
-| CreatedAt    | DateTime      | No       | UTC                                                          |
-| UpdatedAt    | DateTime      | No       | UTC                                                          |
+Possible indexes (via Fluent API if desired):
 
-**Indexes / Uniqueness**
-
-* Unique composite: (**PortfolioId**, **Symbol**) — one holding row per symbol per portfolio
-* Index: **Symbol**
+- Index: `PortfolioId`
+- Index: `Symbol`
+- Optional unique composite: (`PortfolioId`, `Symbol`)
 
 ---
 
 ## Transactions
 
-**Purpose:** immutable audit trail of all changes to cash/positions.
+| Column        | Type           | Nullable | Notes                                                                  |
+| ------------- | -------------- | -------- | ---------------------------------------------------------------------- |
+| TransactionId | Guid (PK)      | No       | Primary key                                                            |
+| PortfolioId   | Guid (FK)      | No       | FK → Portfolios.PortfolioId                                            |
+| UserId        | Guid (FK)      | No       | FK → Users.UserId                                                      |
+| Type          | int (enum)     | No       | `0=Buy, 1=Sell, 2=Deposit, 3=Withdrawal, 4=Dividend, 5=Split, 6=Fee, 7=Interest` |
+| Symbol        | string(12)     | Yes      | Required for position-related types (Buy/Sell/Dividend/Split/Fee)      |
+| Quantity      | decimal(18,6)  | Yes      | For share-based operations                                             |
+| Price         | decimal(18,6)  | Yes      | Per-unit price                                                         |
+| GrossAmount   | decimal(18,2)  | No       | Total cash impact of the transaction                                  |
+| Fee           | decimal(18,2)  | No       | Default `0.00`                                                         |
+| Currency      | string(3)      | No       | ISO code, e.g., `USD`                                                  |
+| ExternalRef   | string         | Yes      | External/broker reference                                              |
+| Notes         | string         | Yes      | Free text                                                              |
+| ExecutedAt    | DateTime (UTC) | No       | When transaction executed                                              |
+| CreatedAt     | DateTime (UTC) | No       |                                                                        |
+| UpdatedAt     | DateTime (UTC) | No       |                                                                        |
 
-| Column        | Type          | Nullable | Constraints / Notes                                                                                   |
-| ------------- | ------------- | -------- | ----------------------------------------------------------------------------------------------------- |
-| TransactionId | Guid (PK)     | No       | Primary key                                                                                           |
-| PortfolioId   | Guid (FK)     | No       | FK → Portfolios.PortfolioId; index; cascade on delete                                                 |
-| UserId        | Guid (FK)     | No       | FK → Users.UserId (who initiated); index                                                              |
-| Type          | string (enum) | No       | One of: `Buy`, `Sell`, `Deposit`, `Withdrawal`, `Dividend`, `Split`, `Fee`, `Interest`                |
-| Symbol        | string        | Yes      | Required for position-affecting types (Buy/Sell/Dividend/Split/Fee); null for pure cash ops           |
-| Quantity      | decimal(18,6) | Yes      | Required for `Buy`/`Sell`/`Split`; > 0                                                                |
-| Price         | decimal(18,6) | Yes      | Execution price per unit for `Buy`/`Sell`; ≥ 0                                                        |
-| GrossAmount   | decimal(18,2) | No       | Signed cash flow: +Deposit/Dividend/Interest, −Withdrawal/Fee; for Buy/Sell equals signed total value |
-| Fee           | decimal(18,2) | Yes      | Default 0.00                                                                                          |
-| Currency      | string (3)    | No       | Default = portfolio currency                                                                          |
-| ExecutedAt    | DateTime      | No       | UTC; when it happened                                                                                 |
-| ExternalRef   | string        | Yes      | Broker/order id                                                                                       |
-| Notes         | string        | Yes      | Freeform                                                                                              |
-| CreatedAt     | DateTime      | No       | UTC                                                                                                   |
-| UpdatedAt     | DateTime      | No       | UTC                                                                                                   |
+Indexes (from attributes):
 
-**Indexes**
-
-* (**PortfolioId**, **ExecutedAt**) — common timeline queries
-* (**PortfolioId**, **Symbol**, **ExecutedAt**) — position histories
-
-**Validation / Business Rules (enforced in app layer or DB constraints)**
-
-* If **Type** ∈ {`Buy`,`Sell`,`Split`} ⇒ **Symbol** NOT NULL, **Quantity** > 0
-* If **Type** ∈ {`Deposit`,`Withdrawal`,`Fee`,`Dividend`,`Interest`} ⇒ **Quantity** NULL
-* **GrossAmount** sign must match **Type**
-* (Optional) **ExecutedAt** not in the future
+- (`PortfolioId`, `ExecutedAt`)
+- (`PortfolioId`, `Symbol`, `ExecutedAt`)
 
 ---
 
 ## Relationships (ER)
 
-* **Users (1) → (n) Portfolios**
-* **Portfolios (1) → (n) Holdings**
-* **Portfolios (1) → (n) Transactions**
-* **Users (1) → (n) Transactions** (initiator)
+- Users (1) → (n) Portfolios  
+- Users (1) → (n) Transactions  
+- Portfolios (1) → (n) Holdings  
+- Portfolios (1) → (n) Transactions  
 
-```
+```text
 Users ──< Portfolios ──< Holdings
    └────< Transactions
 ```
-
----
-
-## Notes & Future Extensions
-
-* Add **Prices** table if you want to persist vendor quotes (Symbol, Source, Price, At).
-* Add **Orders/Executions** if you later simulate order lifecycles separate from Transactions.
-* Add **Tags** (many-to-many) for Portfolios or Transactions for flexible reporting.
-
----
-
-## EF Core Implementation Hints (not code)
-
-* Each entity gets `CreatedAt/UpdatedAt`; update `UpdatedAt` in a SaveChanges interceptor.
-* Configure unique composites via Fluent API:
-
-  * Users.Email (unique)
-  * Portfolios: (UserId, Label) (optional)
-  * Holdings: (PortfolioId, Symbol)
-* Store `Transaction.Type` as string enum for readability (HasConversion).
-* Use cascade deletes for parent→child relationships.
-
----
-
-**Runtime:** This document is **advisory**; migrations define the executable schema.
-**Docker:** Not required to consume this file. If you want containerized seeding or SQL init, add explicit steps in your Dockerfile/entrypoint.
+   

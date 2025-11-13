@@ -1,0 +1,40 @@
+# .NET build output
+bin/
+obj/
+
+# Git
+.git
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+*.user
+*.suo
+
+# Python cache / venv
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+**/.venv/
+
+# Databases / local data
+app.db
+*.db
+*.db-shm
+*.db-wal
+
+# Logs / temp
+*.log
+*.tmp
+*.temp
+
+# Docker
+docker-compose.yml
+
+# Node/frontend (future)
+node_modules/
+dist/
+build/

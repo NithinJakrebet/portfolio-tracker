@@ -1,43 +1,26 @@
-## --- Build artifacts (.NET) ---
-bin/
-obj/
-*.dll
-*.pdb
-*.exe
-*.cache
-*.log
+# .NET build output
+**/bin/
+**/obj/
 
-## --- Virtual environments (Python) ---
-.venv/
-**/.venv/
-venv/
-**/venv/
+.vs/
+.idea/
+.vscode/
+*.user
+*.suo
 
-## --- SQLite databases ---
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Databases / local data
 *.db
 *.db-shm
 *.db-wal
 
-## --- IDE / tooling ---
-.vscode/
-.idea/
-*.user
-*.suo
+# Logs / temp
+*.log
+*.tmp
+*.temp
 
-## --- OS files ---
-.DS_Store
-Thumbs.db
-
-## --- EF Core designer files (optional) ---
-**/Migrations/*Designer.cs
-
-## --- Python cache ---
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-
-## --- Node / frontend (if added later) ---
-node_modules/
-dist/
-build/
+# Publish / artifacts
+**/publish/
