@@ -24,3 +24,5 @@ Thumbs.db
 
 # Publish / artifacts
 **/publish/
+
+.env

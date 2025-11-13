@@ -47,22 +47,35 @@ namespace PortfolioTrackerApi.Data
                 {
                     t.HasCheckConstraint(
                         "CK_Tx_GrossAmount_Sign",
-                        "CASE " +
-                        " WHEN Type IN ('Deposit','Dividend','Interest') THEN GrossAmount >= 0 " +
-                        " WHEN Type IN ('Withdrawal','Fee') THEN GrossAmount <= 0 " +
-                        " ELSE 1 END");
+                        "(" +
+                        " (\"Type\" IN ('Deposit','Dividend','Interest') AND \"GrossAmount\" >= 0) " +
+                        " OR " +
+                        " (\"Type\" IN ('Withdrawal','Fee') AND \"GrossAmount\" <= 0) " +
+                        " OR " +
+                        " (\"Type\" NOT IN ('Deposit','Dividend','Interest','Withdrawal','Fee'))" +
+                        ")"
+                    );
 
                     t.HasCheckConstraint(
                         "CK_Tx_SymbolRequired_For_Positions",
-                        "CASE " +
-                        " WHEN Type IN ('Buy','Sell','Split','Fee','Dividend') THEN Symbol IS NOT NULL " +
-                        " ELSE 1 END");
+                        "(" +
+                        " (\"Type\" IN ('Buy','Sell','Split','Fee','Dividend') AND \"Symbol\" IS NOT NULL) " +
+                        " OR " +
+                        " (\"Type\" NOT IN ('Buy','Sell','Split','Fee','Dividend'))" +
+                        ")"
+                    );
 
                     t.HasCheckConstraint(
                         "CK_Tx_Positions_Quantity_Price",
-                        "CASE " +
-                        " WHEN Type IN ('Buy','Sell','Split') THEN Quantity IS NOT NULL AND Quantity > 0 AND Price IS NOT NULL AND Price >= 0 " +
-                        " ELSE 1 END");
+                        "(" +
+                        " (\"Type\" IN ('Buy','Sell','Split') " +
+                        "   AND \"Quantity\" IS NOT NULL AND \"Quantity\" > 0 " +
+                        "   AND \"Price\" IS NOT NULL AND \"Price\" >= 0" +
+                        " ) " +
+                        " OR " +
+                        " (\"Type\" NOT IN ('Buy','Sell','Split'))" +
+                        ")"
+                    );
                 });
             });
         }
