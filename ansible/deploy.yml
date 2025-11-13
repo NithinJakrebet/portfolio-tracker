@@ -1,0 +1,29 @@
+- name: Deploy Portfolio Tracker API with Docker (CLI-based)
+  hosts: portfolio_api
+  connection: local
+  become: true
+  gather_facts: false
+
+  vars:
+    project_root: /workspaces/portfolio-tracker
+    app_name: portfolio-tracker-api
+    host_port: 8080
+    container_port: 8080
+
+  tasks:
+    - name: Build Docker image for Portfolio Tracker API
+      ansible.builtin.command:
+        cmd: docker build -t {{ app_name }} .
+        chdir: "{{ project_root }}/PortfolioTrackerApi"
+
+    - name: Stop existing container if running
+      ansible.builtin.command:
+        cmd: docker rm -f {{ app_name }}
+      ignore_errors: true
+
+    - name: Run Portfolio Tracker API container
+      ansible.builtin.command:
+        cmd: >
+          docker run -d --name {{ app_name }}
+          -p {{ host_port }}:{{ container_port }}
+          {{ app_name }}
