@@ -131,25 +131,3 @@ ansible-playbook -i infra/inventory.ini infra/deploy.yml
 ```
 
 This installs Docker on the target host, syncs source code, builds the image, and starts the container.
-
----
-
-## Project Layout
-
-```
-PortfolioTrackerApi/
-  Controllers/
-  Models/
-  Data/
-  Migrations/
-  Dtos/
-  Dockerfile
-  appsettings.json
-  appsettings.Development.json
-  Program.cs
-docs/
-  schema.md
-infra/ (optional)
-  inventory.ini
-  deploy.yml
-```
