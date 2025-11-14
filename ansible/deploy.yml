@@ -10,13 +10,43 @@
     host_port: 8080
     container_port: 8080
 
+    docker_network: portfolio-net
+
+    db_container_name: db
+    db_image: postgres:16
+    db_port: 5432
+    db_name: portfolio_db
+    db_user: portfolio_user
+    db_password: portfolio_pass
+
   tasks:
+    - name: Ensure Docker network exists
+      ansible.builtin.command:
+        cmd: docker network create {{ docker_network }}
+      ignore_errors: true
+
+    - name: Stop existing Postgres container if running
+      ansible.builtin.command:
+        cmd: docker rm -f {{ db_container_name }}
+      ignore_errors: true
+
+    - name: Run Postgres container (database)
+      ansible.builtin.command:
+        cmd: >
+          docker run -d --name {{ db_container_name }}
+          --network {{ docker_network }}
+          -e POSTGRES_USER={{ db_user }}
+          -e POSTGRES_PASSWORD={{ db_password }}
+          -e POSTGRES_DB={{ db_name }}
+          {{ db_image }}
+
+
     - name: Build Docker image for Portfolio Tracker API
       ansible.builtin.command:
         cmd: docker build -t {{ app_name }} .
         chdir: "{{ project_root }}/PortfolioTrackerApi"
 
-    - name: Stop existing container if running
+    - name: Stop existing API container if running
       ansible.builtin.command:
         cmd: docker rm -f {{ app_name }}
       ignore_errors: true
@@ -25,5 +55,7 @@
       ansible.builtin.command:
         cmd: >
           docker run -d --name {{ app_name }}
+          --network {{ docker_network }}
           -p {{ host_port }}:{{ container_port }}
+          -e ConnectionStrings__DefaultConnection=Host={{ db_container_name }};Port={{ db_port }};Database={{ db_name }};Username={{ db_user }};Password={{ db_password }}
           {{ app_name }}
